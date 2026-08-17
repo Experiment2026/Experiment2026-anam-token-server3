@@ -32,7 +32,12 @@
     }
 
     #status {
-      margin-bottom: 10px;
+      margin-bottom: 16px;
+    }
+
+    #instruction {
+      margin-bottom: 16px;
+      font-style: italic;
     }
 
     #videoContainer {
@@ -86,6 +91,11 @@
       font-size: 16px;
       box-sizing: border-box;
       resize: none;
+
+      background: #f7f7f7;
+      color: #222;
+      border: 1px solid #7f7f7f;
+      border-radius: 0;
     }
 
     #input:disabled {
@@ -94,6 +104,28 @@
       border: 1px solid #d3d3d3;
       cursor: not-allowed;
       opacity: 1;
+    }
+
+    #finishBtn {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 12px 20px;
+
+      font-size: 16px;
+      font-weight: bold;
+
+      border: none;
+      border-radius: 8px;
+
+      background: #222;
+      color: white;
+
+      cursor: pointer;
+    }
+
+    #finishBtn:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
     }
 
     #hiddenTranscript {
@@ -105,13 +137,21 @@
 <body>
   <div class="wrap">
     <div class="card">
+
       <h2>Chat Assistant</h2>
 
       <div id="status">
-        Click the button to start.
+        Click the <strong>"Start conversation"</strong> button to start.
+      </div>
+
+      <div id="instruction">
+        Once you have finished your conversation, click the
+        <strong>"Finish conversation and return to survey"</strong>
+        button at the bottom to return to the survey.
       </div>
 
       <div id="videoContainer">
+
         <video
           id="avatar"
           autoplay
@@ -121,6 +161,7 @@
         <button id="startBtn">
           Start conversation
         </button>
+
       </div>
 
       <textarea
@@ -130,45 +171,74 @@
         disabled
       ></textarea>
 
+      <button id="finishBtn" disabled>
+        Finish conversation and return to survey
+      </button>
+
       <div id="hiddenTranscript"></div>
+
     </div>
   </div>
 
+
   <script type="module">
+
     import {
       createClient,
       AnamEvent
     } from "https://esm.sh/@anam-ai/js-sdk";
 
+
     /*
-      Condition 3:
+      CONDITION 3:
       Video interface + text input
     */
     const CONDITION =
       "interface_video_input_text";
 
+
     /*
-      Shared backend used by all four experimental conditions.
+      Shared backend used by all four
+      experimental conditions.
     */
     const API_BASE_URL =
       "https://anam-token-server-1.onrender.com";
 
+
     let client = null;
+
     let transcript = [];
 
-    /*
-      The participant receives their ID in Qualtrics.
 
-      The chatbot asks for this ID in its greeting, and the
-      participant enters it as their first typed response.
+    /*
+      Participant ID.
+
+      Participant receives their ID in Qualtrics
+      and enters it as their first typed response.
     */
     let participantId = null;
+
     let firstUserMessage = true;
 
+
+    /*
+      Assistant response buffer.
+
+      The avatar itself is visible in this condition,
+      so assistant text is not shown to participants.
+      The buffer is used for transcript storage only.
+    */
     let assistantBuffer = "";
 
+
+    /*
+      ELEMENTS
+    */
+
     const statusEl =
-      document.getElementById("status");
+      document.getElementById(
+        "status"
+      );
 
     const hiddenTranscript =
       document.getElementById(
@@ -176,28 +246,69 @@
       );
 
     const startBtn =
-      document.getElementById("startBtn");
+      document.getElementById(
+        "startBtn"
+      );
+
+    const finishBtn =
+      document.getElementById(
+        "finishBtn"
+      );
 
     const inputEl =
-      document.getElementById("input");
+      document.getElementById(
+        "input"
+      );
 
     const avatar =
-      document.getElementById("avatar");
+      document.getElementById(
+        "avatar"
+      );
 
+
+    /*
+      Normal status text.
+    */
     function setStatus(text) {
-      statusEl.textContent = text;
+
+      statusEl.textContent =
+        text;
+
     }
 
+
+    /*
+      Connected status shown in bold.
+    */
+    function setConnectedStatus() {
+
+      statusEl.innerHTML =
+        "<strong>Connected</strong>";
+
+    }
+
+
+    /*
+      ================================
+      PARTICIPANT ID EXTRACTION
+      ================================
+    */
+
     function extractParticipantId(text) {
+
       const trimmedText =
         String(text).trim();
 
+
       if (!trimmedText) {
+
         return null;
+
       }
 
+
       /*
-        This supports IDs such as:
+        Supports IDs such as:
 
         P014
         participant-014
@@ -211,415 +322,864 @@
           /[A-Za-z0-9_-]+/g
         );
 
+
       if (
         !candidates ||
         candidates.length === 0
       ) {
+
         return null;
+
       }
+
 
       const likelyIds =
         candidates.filter(
           (candidate) =>
-            /[0-9_-]/.test(candidate)
+            /[0-9_-]/.test(
+              candidate
+            )
         );
+
 
       const selectedId =
         likelyIds.length > 0
+
           ? likelyIds[
               likelyIds.length - 1
             ]
+
           : candidates[
               candidates.length - 1
             ];
 
+
       const cleanedId =
         selectedId
+
           .trim()
+
           .replace(
             /[^A-Za-z0-9_-]/g,
             ""
           )
-          .slice(0, 100);
+
+          .slice(
+            0,
+            100
+          );
+
 
       return cleanedId || null;
+
     }
+
+
+    /*
+      ================================
+      HIDDEN TRANSCRIPT
+      ================================
+
+      Not visible to participants.
+
+      Used only as an internal representation
+      of the transcript on the page.
+    */
 
     function appendHiddenTranscript(
       role,
       text
     ) {
+
       const row =
-        document.createElement("p");
+        document.createElement(
+          "p"
+        );
+
 
       const label =
-        document.createElement("b");
+        document.createElement(
+          "b"
+        );
+
 
       label.textContent =
         `${role}: `;
 
+
       const messageText =
-        document.createElement("span");
+        document.createElement(
+          "span"
+        );
 
-      messageText.textContent = text;
 
-      row.appendChild(label);
-      row.appendChild(messageText);
+      messageText.textContent =
+        text;
 
-      hiddenTranscript.appendChild(row);
+
+      row.appendChild(
+        label
+      );
+
+
+      row.appendChild(
+        messageText
+      );
+
+
+      hiddenTranscript.appendChild(
+        row
+      );
+
     }
 
+
+    /*
+      ================================
+      USER TEXT
+      ================================
+    */
+
     function appendUserMessage(text) {
+
       transcript.push({
-        role: "user",
-        content: text,
+
+        role:
+          "user",
+
+        content:
+          text,
+
         timestamp:
           new Date().toISOString()
+
       });
+
 
       appendHiddenTranscript(
         "You",
         text
       );
 
-      /*
-        The first user response should contain the participant ID
-        supplied through Qualtrics.
-      */
-      if (firstUserMessage) {
-        participantId =
-          extractParticipantId(text);
 
-        firstUserMessage = false;
+      /*
+        The first participant response
+        should contain the Qualtrics ID.
+      */
+      if (
+        firstUserMessage
+      ) {
+
+        participantId =
+          extractParticipantId(
+            text
+          );
+
+
+        firstUserMessage =
+          false;
+
 
         if (participantId) {
+
           console.log(
             "Participant ID detected:",
             participantId
           );
+
         } else {
+
           console.warn(
             "No participant ID could be detected from the first user message."
           );
+
         }
+
       }
+
     }
 
+
+    /*
+      ================================
+      TRANSCRIPT SAVING
+      ================================
+    */
+
     async function saveTranscript() {
+
       /*
-        Do not create a database record without a participant ID.
+        Do not create a database record
+        without a participant ID.
       */
       if (!participantId) {
+
         console.warn(
           "Transcript not saved because no participant ID has been detected."
         );
 
+
         return;
+
       }
 
+
       try {
+
         const response =
           await fetch(
+
             `${API_BASE_URL}/api/save-transcript`,
+
             {
-              method: "POST",
+
+              method:
+                "POST",
 
               headers: {
+
                 "Content-Type":
                   "application/json"
+
               },
 
-              body: JSON.stringify({
-                participantId:
-                  participantId,
+              body:
+                JSON.stringify({
 
-                condition:
-                  CONDITION,
+                  participantId:
+                    participantId,
 
-                transcript:
-                  transcript
-              })
+                  condition:
+                    CONDITION,
+
+                  transcript:
+                    transcript
+
+                })
+
             }
+
           );
+
 
         let data;
 
+
         try {
+
           data =
             await response.json();
-        } catch (jsonError) {
+
+        } catch (
+          jsonError
+        ) {
+
           throw new Error(
             "The transcript endpoint returned an invalid response."
           );
+
         }
 
+
         if (!response.ok) {
+
           throw new Error(
+
             data.error ||
-              "Transcript save failed."
+
+            "Transcript save failed."
+
           );
+
         }
+
 
         console.log(
           "Transcript saved:",
           data
         );
-      } catch (error) {
+
+
+      } catch (
+        error
+      ) {
+
         console.error(
           "Transcript autosave error:",
           error
         );
 
+
         setStatus(
+
           "Connected, but transcript saving failed: " +
-            (
-              error?.message ||
-              String(error)
-            )
+
+          (
+            error?.message ||
+            String(error)
+          )
+
         );
+
       }
+
     }
 
+
+    /*
+      ================================
+      ASSISTANT TRANSCRIPT
+      ================================
+    */
+
     async function finishAssistantMessage() {
+
       const finalText =
         assistantBuffer.trim();
 
+
       if (finalText) {
+
         transcript.push({
-          role: "assistant",
-          content: finalText,
+
+          role:
+            "assistant",
+
+          content:
+            finalText,
+
           timestamp:
             new Date().toISOString()
+
         });
+
 
         appendHiddenTranscript(
           "Assistant",
           finalText
         );
 
+
         /*
-          Save the full transcript after each completed assistant
-          response.
+          Save full transcript after
+          each completed assistant response.
         */
         await saveTranscript();
+
       }
 
-      assistantBuffer = "";
+
+      assistantBuffer =
+        "";
+
     }
 
+
+    /*
+      ================================
+      START SESSION
+      ================================
+    */
+
     async function startSession() {
+
       try {
+
         setStatus(
           "Creating session..."
         );
 
+
         const response =
           await fetch(
+
             `${API_BASE_URL}/api/session-token`,
+
             {
-              method: "POST"
+              method:
+                "POST"
             }
+
           );
+
 
         let data;
 
+
         try {
+
           data =
             await response.json();
-        } catch (jsonError) {
+
+        } catch (
+          jsonError
+        ) {
+
           throw new Error(
             "The session-token endpoint returned an invalid response."
           );
+
         }
 
+
         if (!response.ok) {
+
           console.error(
             "Session-token response:",
             data
           );
 
+
           throw new Error(
+
             data.error ||
-              data.message ||
-              "Failed to get session token."
+
+            data.message ||
+
+            "Failed to get session token."
+
           );
+
         }
 
-        if (!data.sessionToken) {
+
+        if (
+          !data.sessionToken
+        ) {
+
           throw new Error(
             "No session token was returned by the backend."
           );
+
         }
 
-        /*
-          This condition uses typed input, so microphone input
-          is disabled.
-        */
-        client = createClient(
-          data.sessionToken,
-          {
-            disableInputAudio:
-              true
-          }
-        );
 
+        /*
+          This condition uses typed input,
+          so microphone input is disabled.
+        */
+        client =
+          createClient(
+
+            data.sessionToken,
+
+            {
+
+              disableInputAudio:
+                true
+
+            }
+
+          );
+
+
+        /*
+          Store Sophie/persona responses
+          for the research transcript.
+
+          They are not rendered as text
+          because participants see and hear
+          the avatar instead.
+        */
         client.addListener(
+
           AnamEvent
             .MESSAGE_STREAM_EVENT_RECEIVED,
 
-          async (event) => {
+          async (
+            event
+          ) => {
+
             if (
               event.role !==
               "persona"
             ) {
+
               return;
+
             }
+
 
             assistantBuffer +=
               event.content || "";
 
-            if (event.endOfSpeech) {
+
+            if (
+              event.endOfSpeech
+            ) {
+
               await finishAssistantMessage();
+
             }
+
           }
+
         );
 
+
         /*
-          The Anam SDK expects the HTML video element ID.
+          The Anam SDK expects
+          the HTML video element ID.
         */
         await client
           .streamToVideoElement(
             "avatar"
           );
 
+
         /*
-          The participant can see and hear the avatar in this
-          condition.
+          Participant can SEE and HEAR
+          Sophie in this condition.
         */
-        avatar.muted = false;
-        avatar.volume = 1;
+        avatar.muted =
+          false;
 
-        inputEl.disabled = false;
-        inputEl.focus();
+        avatar.volume =
+          1;
 
-        setStatus("Connected");
-      } catch (error) {
+
+        /*
+          Bold Connected only after
+          the session is genuinely ready.
+        */
+        setConnectedStatus();
+
+
+      } catch (
+        error
+      ) {
+
         console.error(
           "Session start error:",
           error
         );
 
+
         setStatus(
+
           "Failed to start session: " +
-            (
-              error?.message ||
-              String(error)
-            )
+
+          (
+            error?.message ||
+            String(error)
+          )
+
         );
 
+
         throw error;
+
       }
+
     }
 
+
+    /*
+      ================================
+      SEND TEXT MESSAGE
+      ================================
+    */
+
     async function sendMessage() {
+
       try {
+
         if (!client) {
+
           setStatus(
             "Still connecting..."
           );
 
+
           return;
+
         }
+
 
         const text =
           inputEl.value.trim();
 
+
         if (!text) {
+
           return;
+
         }
 
-        appendUserMessage(text);
 
-        inputEl.value = "";
+        appendUserMessage(
+          text
+        );
+
+
+        inputEl.value =
+          "";
+
 
         await client
-          .sendUserMessage(text);
-      } catch (error) {
+          .sendUserMessage(
+            text
+          );
+
+
+      } catch (
+        error
+      ) {
+
         console.error(
           "Send-message error:",
           error
         );
 
+
         setStatus(
+
           "Send error: " +
-            (
-              error?.message ||
-              String(error)
-            )
+
+          (
+            error?.message ||
+            String(error)
+          )
+
         );
+
       }
+
     }
 
+
+    /*
+      Enter sends.
+      Shift + Enter creates a new line.
+    */
     inputEl.addEventListener(
+
       "keydown",
-      (event) => {
+
+      (
+        event
+      ) => {
+
         if (
-          event.key === "Enter" &&
+          event.key ===
+            "Enter" &&
           !event.shiftKey
         ) {
+
           event.preventDefault();
 
+
           sendMessage();
+
         }
+
       }
+
     );
 
+
+    /*
+      ================================
+      START BUTTON
+      ================================
+    */
+
     startBtn.addEventListener(
+
       "click",
+
       async () => {
+
         try {
+
           startBtn.disabled =
             true;
+
 
           startBtn.textContent =
             "Starting...";
 
+
+          /*
+            Connect to Anam.
+          */
           await startSession();
 
+
+          /*
+            Hide the Start button once
+            connection succeeds.
+          */
           startBtn.style.display =
             "none";
-        } catch (error) {
+
+
+          /*
+            Enable participant text input.
+          */
+          inputEl.disabled =
+            false;
+
+
+          inputEl.style.background =
+            "white";
+
+
+          inputEl.style.color =
+            "#222";
+
+
+          inputEl.focus();
+
+
+          /*
+            Enable Finish only after the
+            conversation has successfully started.
+          */
+          finishBtn.disabled =
+            false;
+
+
+          /*
+            Keep Connected bold.
+          */
+          setConnectedStatus();
+
+
+        } catch (
+          error
+        ) {
+
           console.error(
             "Full start-session error:",
             error
           );
 
+
           startBtn.disabled =
             false;
+
 
           startBtn.textContent =
             "Start conversation";
 
+
           startBtn.style.display =
             "block";
+
 
           inputEl.disabled =
             true;
 
+
+          /*
+            Keep Finish disabled if
+            startup fails.
+          */
+          finishBtn.disabled =
+            true;
+
+
           setStatus(
+
             "Failed to start session: " +
-              (
-                error?.message ||
-                String(error)
-              )
+
+            (
+              error?.message ||
+              String(error)
+            )
+
           );
+
         }
+
       }
+
     );
 
-    setStatus(
-      "Click the button to start."
+
+    /*
+      ================================
+      FINISH CONVERSATION BUTTON
+      ================================
+    */
+
+    finishBtn.addEventListener(
+
+      "click",
+
+      async () => {
+
+        try {
+
+          /*
+            Prevent repeated clicks.
+          */
+          finishBtn.disabled =
+            true;
+
+
+          finishBtn.textContent =
+            "Finishing...";
+
+
+          /*
+            Perform one final transcript
+            save if participant ID exists.
+          */
+          if (participantId) {
+
+            setStatus(
+              "Saving your conversation..."
+            );
+
+
+            await saveTranscript();
+
+          }
+
+
+          setStatus(
+            "Returning to the survey..."
+          );
+
+
+          /*
+            Return to previous browser page,
+            i.e. the survey.
+          */
+          window.history.back();
+
+
+        } catch (
+          error
+        ) {
+
+          console.error(
+            "Finish-conversation error:",
+            error
+          );
+
+
+          finishBtn.disabled =
+            false;
+
+
+          finishBtn.textContent =
+            "Finish conversation and return to survey";
+
+
+          setStatus(
+            "The conversation could not be saved. Please try the Finish button again."
+          );
+
+        }
+
+      }
+
     );
+
   </script>
+
 </body>
 </html>
