@@ -219,14 +219,21 @@
 
 
     /*
-      Participant ID.
+      Read the participant ID directly from
+      the URL supplied by Qualtrics.
 
-      Participant receives their ID in Qualtrics
-      and enters it as their first typed response.
+      Example:
+      ?participantId=7289
     */
-    let participantId = null;
+    const urlParams =
+      new URLSearchParams(
+        window.location.search
+      );
 
-    let firstUserMessage = true;
+    const participantId =
+      urlParams.get(
+        "participantId"
+      );
 
 
     /*
@@ -281,6 +288,35 @@
 
 
     /*
+      Verify that Qualtrics supplied
+      a participant ID.
+    */
+    if (participantId) {
+
+      console.log(
+        "Participant ID received from Qualtrics:",
+        participantId
+      );
+
+    } else {
+
+      console.error(
+        "No participant ID was supplied in the URL."
+      );
+
+      startBtn.disabled =
+        true;
+
+      startBtn.textContent =
+        "Participant ID missing";
+
+      statusEl.textContent =
+        "Unable to start: no participant ID was supplied by the survey.";
+
+    }
+
+
+    /*
       Normal status text.
     */
     function setStatus(text) {
@@ -298,93 +334,6 @@
 
       statusEl.innerHTML =
         "<strong>Connected</strong>";
-
-    }
-
-
-    /*
-      ================================
-      PARTICIPANT ID EXTRACTION
-      ================================
-    */
-
-    function extractParticipantId(text) {
-
-      const trimmedText =
-        String(text).trim();
-
-
-      if (!trimmedText) {
-
-        return null;
-
-      }
-
-
-      /*
-        Supports IDs such as:
-
-        P014
-        participant-014
-        R_ABC123XYZ
-
-        It also works if the participant types:
-        "My participant ID is P014"
-      */
-      const candidates =
-        trimmedText.match(
-          /[A-Za-z0-9_-]+/g
-        );
-
-
-      if (
-        !candidates ||
-        candidates.length === 0
-      ) {
-
-        return null;
-
-      }
-
-
-      const likelyIds =
-        candidates.filter(
-          (candidate) =>
-            /[0-9_-]/.test(
-              candidate
-            )
-        );
-
-
-      const selectedId =
-        likelyIds.length > 0
-
-          ? likelyIds[
-              likelyIds.length - 1
-            ]
-
-          : candidates[
-              candidates.length - 1
-            ];
-
-
-      const cleanedId =
-        selectedId
-
-          .trim()
-
-          .replace(
-            /[^A-Za-z0-9_-]/g,
-            ""
-          )
-
-          .slice(
-            0,
-            100
-          );
-
-
-      return cleanedId || null;
 
     }
 
@@ -470,42 +419,6 @@
         text
       );
 
-
-      /*
-        The first participant response
-        should contain the Qualtrics ID.
-      */
-      if (
-        firstUserMessage
-      ) {
-
-        participantId =
-          extractParticipantId(
-            text
-          );
-
-
-        firstUserMessage =
-          false;
-
-
-        if (participantId) {
-
-          console.log(
-            "Participant ID detected:",
-            participantId
-          );
-
-        } else {
-
-          console.warn(
-            "No participant ID could be detected from the first user message."
-          );
-
-        }
-
-      }
-
     }
 
 
@@ -520,7 +433,7 @@
       if (!participantId) {
 
         console.warn(
-          "Transcript not saved because no participant ID has been detected."
+          "Transcript not saved because no participant ID was supplied."
         );
 
 
@@ -779,7 +692,7 @@
 
 
         /*
-          Store Sophie/persona responses
+          Store Arjun/persona responses
           for the research transcript.
 
           They are not rendered as text
@@ -797,7 +710,7 @@
 
             if (
               event.role !==
-              "persona"
+                "persona"
             ) {
 
               return;
@@ -833,7 +746,7 @@
 
         /*
           Participant can SEE and HEAR
-          Sophie in this condition.
+          Arjun in this condition.
         */
         avatar.muted =
           false;
@@ -995,6 +908,21 @@
       async () => {
 
         try {
+
+          /*
+            Participant ID must already
+            have been supplied by Qualtrics.
+          */
+          if (!participantId) {
+
+            setStatus(
+              "Unable to start: no participant ID was supplied by the survey."
+            );
+
+            return;
+
+          }
+
 
           startBtn.disabled =
             true;
